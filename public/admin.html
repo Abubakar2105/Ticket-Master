@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0d100c">
+<title>TicketMaster | Admin Console</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --bg: #0d100c; --panel: #151914; --panel-2: #1a1f18; --line: #262d24;
+    --text: #e6e9e3; --muted: #8b9587; --lime: #a3e635; --amber: #fbbf24; --red: #f87171; --sky: #7dd3fc; --violet: #c4b5fd;
+  }
+  body { background: var(--bg); color: var(--text); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; }
+  .metric-value { font-variant-numeric: tabular-nums; letter-spacing: -0.04em; }
+  .nav-link { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; color:var(--muted); width:100%; text-align:left; transition:.15s; }
+  .nav-link:hover { background:#1c231a; color:var(--text); }
+  .nav-link.active { background:#222c1f; color:#d9f99d; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#4b5563; flex:none; }
+  .dot.ok { background:var(--lime); box-shadow:0 0 0 4px rgba(163,230,53,.15); }
+  .dot.warn { background:var(--amber); box-shadow:0 0 0 4px rgba(251,191,36,.15); }
+  .dot.bad { background:var(--red); box-shadow:0 0 0 4px rgba(248,113,113,.15); }
+  .pulse { animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity:.5; } }
+  .spark { width:100%; height:44px; display:block; }
+  .bar-track { background:#232a21; border-radius:999px; height:8px; overflow:hidden; }
+  .bar-fill { height:100%; border-radius:999px; transition: width .5s ease; }
+  .btn { border:1px solid var(--line); background:var(--panel-2); border-radius:10px; padding:8px 14px; font-size:13px; transition:.15s; }
+  .btn:hover { background:#222a20; }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+  input, select { background:var(--bg); border:1px solid #333c31; border-radius:10px; padding:10px 12px; color:var(--text); width:100%; outline:none; }
+  input:focus, select:focus { border-color:var(--lime); }
+  select.small { width:auto; padding:7px 10px; font-size:13px; }
+  .skeleton { color: transparent !important; background: linear-gradient(90deg,#1b2119,#252c22,#1b2119); background-size:200% 100%; animation: sh 1.4s infinite; border-radius:8px; }
+  @keyframes sh { to { background-position:-200% 0; } }
+  .chip { font-size:11px; padding:3px 8px; border-radius:999px; border:1px solid var(--line); color:var(--muted); }
+  .chip.ok { color:#bef264; border-color:rgba(163,230,53,.35); background:rgba(163,230,53,.08); }
+  .chip.warn { color:#fde68a; border-color:rgba(251,191,36,.35); background:rgba(251,191,36,.08); }
+  .chip.bad { color:#fecaca; border-color:rgba(248,113,113,.35); background:rgba(248,113,113,.08); }
+  .row + .row { border-top:1px solid var(--line); }
+</style>
+</head>
+<body>
+<div class="min-h-screen lg:flex">
+
+  <!-- Sidebar -->
+  <aside class="w-full border-b border-white/10 p-5 lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:flex-none lg:border-b-0 lg:border-r">
+    <div class="mb-8 flex items-center gap-3">
+      <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-lime-300 font-bold text-black">T</div>
+      <div>
+        <h1 class="font-semibold text-white">TicketMaster</h1>
+        <p class="text-xs text-gray-500">Admin Console</p>
+      </div>
+    </div>
+
+    <p class="mb-3 text-xs uppercase tracking-widest text-gray-500">Monitoring</p>
+    <nav class="space-y-1">
+      <button class="nav-link active" data-section="overview">Overview</button>
+      <button class="nav-link" data-section="latency">Latency</button>
+      <button class="nav-link" data-section="performance">Performance</button>
+      <button class="nav-link" data-section="health">System health</button>
+    </nav>
+
+    <div class="mt-8 rounded-xl border border-white/10 p-4">
+      <div class="mb-2 flex items-center justify-between">
+        <span class="text-sm text-gray-400">API status</span>
+        <span id="sidebarStatus" class="text-xs text-gray-500">Checking</span>
+      </div>
+      <div class="flex items-center gap-2 text-sm">
+        <span id="sidebarDot" class="dot"></span>
+        <span id="lastUpdated" class="text-gray-300">Waiting for data</span>
+      </div>
+    </div>
+
+    <button id="signOut" class="btn mt-4 hidden w-full text-gray-400">Sign out</button>
+  </aside>
+
+  <!-- Main -->
+  <main class="min-w-0 flex-1 p-5 sm:p-8">
+    <header class="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div>
+        <p id="crumb" class="mb-2 text-sm text-lime-300">MONITORING / OVERVIEW</p>
+        <h2 class="text-2xl font-semibold tracking-tight text-white sm:text-3xl">System overview</h2>
+        <p class="mt-2 text-sm text-gray-400">Live production metrics from your Express API via Prometheus.</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <span id="refreshStatus" class="mr-1 text-xs text-gray-500">Auto-refresh</span>
+        <select id="intervalSelect" class="small" aria-label="Refresh interval">
+          <option value="5000">5s</option>
+          <option value="10000" selected>10s</option>
+          <option value="30000">30s</option>
+          <option value="60000">60s</option>
+        </select>
+        <button id="pauseButton" class="btn">Pause</button>
+        <button id="refreshButton" class="btn">Refresh</button>
+      </div>
+    </header>
+
+    <div id="errorBanner" class="mb-6 hidden rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300" role="alert"></div>
+
+    <!-- Overview -->
+    <section id="overview" class="scroll-mt-6">
+      <div class="mb-4 flex items-center justify-between">
+        <h3 class="font-semibold text-white">Request metrics</h3>
+        <span class="text-xs text-gray-500">Rolling 5-minute window · trend since page load</span>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <article class="panel p-5">
+          <p class="text-sm text-gray-400">Requests / sec</p>
+          <h3 id="requestsPerSecond" class="metric-value mt-3 text-3xl font-semibold text-white skeleton">0.00</h3>
+          <div id="sparkRps" class="mt-3"></div>
+        </article>
+
+        <article class="panel p-5">
+          <p class="text-sm text-gray-400">Total requests</p>
+          <h3 id="totalRequests" class="metric-value mt-3 text-3xl font-semibold text-white skeleton">0000</h3>
+          <div id="sparkTotal" class="mt-3"></div>
+        </article>
+
+        <article class="panel p-5">
+          <div class="flex items-center justify-between">
+            <p class="text-sm text-gray-400">Server error rate</p>
+            <span id="errorChip" class="chip">—</span>
+          </div>
+          <h3 id="errorRate" class="metric-value mt-3 text-3xl font-semibold text-white skeleton">0.00%</h3>
+          <div id="sparkErr" class="mt-3"></div>
+        </article>
+
+        <article class="panel p-5">
+          <p class="text-sm text-gray-400">API status</p>
+          <div class="mt-3 flex items-center gap-3">
+            <span id="apiDot" class="dot"></span>
+            <h3 id="apiStatus" class="text-3xl font-semibold text-white">Checking</h3>
+          </div>
+          <p id="apiStatusDescription" class="mt-3 text-xs text-gray-500">Waiting for metrics</p>
+          <p class="mt-6 text-xs text-gray-500">Target: errors under 1%, P95 under 500 ms</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- Latency -->
+    <section id="latency" class="mt-10 scroll-mt-6">
+      <div class="mb-4 flex items-center justify-between">
+        <h3 class="font-semibold text-white">Latency percentiles</h3>
+        <span class="text-xs text-gray-500">Milliseconds</span>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 xl:grid-cols-5">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3 xl:col-span-3 xl:grid-cols-3">
+          <article class="panel p-5">
+            <p class="text-sm text-gray-400">P50 <span class="text-gray-600">· median</span></p>
+            <h3 id="p50Latency" class="metric-value mt-3 text-3xl font-semibold text-white skeleton">000 ms</h3>
+            <div class="bar-track mt-4"><div id="p50Bar" class="bar-fill" style="width:0;background:var(--sky)"></div></div>
+          </article>
+          <article class="panel p-5">
+            <p class="text-sm text-gray-400">P95 <span class="text-gray-600">· 95% at or below</span></p>
+            <h3 id="p95Latency" class="metric-value mt-3 text-3xl font-semibold text-white skeleton">000 ms</h3>
+            <div class="bar-track mt-4"><div id="p95Bar" class="bar-fill" style="width:0;background:var(--violet)"></div></div>
+          </article>
+          <article class="panel p-5">
+            <p class="text-sm text-gray-400">P99 <span class="text-gray-600">· 99% at or below</span></p>
+            <h3 id="p99Latency" class="metric-value mt-3 text-3xl font-semibold text-white skeleton">000 ms</h3>
+            <div class="bar-track mt-4"><div id="p99Bar" class="bar-fill" style="width:0;background:var(--amber)"></div></div>
+          </article>
+        </div>
+
+        <article class="panel p-5 xl:col-span-2">
+          <div class="mb-2 flex items-center justify-between">
+            <p class="text-sm text-gray-400">Latency trend</p>
+            <div class="flex gap-3 text-xs text-gray-500">
+              <span><i class="mr-1 inline-block h-2 w-2 rounded-full" style="background:var(--sky)"></i>P50</span>
+              <span><i class="mr-1 inline-block h-2 w-2 rounded-full" style="background:var(--violet)"></i>P95</span>
+              <span><i class="mr-1 inline-block h-2 w-2 rounded-full" style="background:var(--amber)"></i>P99</span>
+            </div>
+          </div>
+          <div id="latencyChart" class="h-28"></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- Performance -->
+    <section id="performance" class="mt-10 scroll-mt-6">
+      <div class="mb-4">
+        <h3 class="font-semibold text-white">Process performance</h3>
+        <p class="mt-1 text-sm text-gray-400">Resource usage reported by the Node.js process.</p>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <article class="panel p-5">
+          <p class="text-sm text-gray-400">Process memory (RSS)</p>
+          <h3 id="memoryUsed" class="metric-value mt-3 text-3xl font-semibold text-white skeleton">000 MB</h3>
+          <div id="sparkMem" class="mt-3"></div>
+        </article>
+        <article class="panel p-5">
+          <p class="text-sm text-gray-400">V8 heap allocated</p>
+          <h3 id="heapTotal" class="metric-value mt-3 text-3xl font-semibold text-white skeleton">000 MB</h3>
+          <div class="bar-track mt-6"><div id="heapBar" class="bar-fill" style="width:0;background:var(--sky)"></div></div>
+          <p id="heapRatio" class="mt-2 text-xs text-gray-500">Share of RSS</p>
+        </article>
+        <article class="panel p-5">
+          <p class="text-sm text-gray-400">Process CPU</p>
+          <h3 id="cpuUsage" class="metric-value mt-3 text-3xl font-semibold text-white skeleton">0.00%</h3>
+          <div id="sparkCpu" class="mt-3"></div>
+        </article>
+      </div>
+
+      <div class="panel mt-6 p-5">
+        <div class="mb-4 flex items-center justify-between">
+          <div>
+            <h3 class="font-semibold text-white">Slowest API routes</h3>
+            <p class="mt-1 text-sm text-gray-400">Average response duration over the last five minutes.</p>
+          </div>
+          <div class="hidden gap-3 text-xs text-gray-500 sm:flex">
+            <span><i class="mr-1 inline-block h-2 w-2 rounded-full bg-lime-400"></i>&lt; 200 ms</span>
+            <span><i class="mr-1 inline-block h-2 w-2 rounded-full bg-amber-400"></i>&lt; 500 ms</span>
+            <span><i class="mr-1 inline-block h-2 w-2 rounded-full bg-red-400"></i>slower</span>
+          </div>
+        </div>
+        <div id="slowestRoutes" class="text-sm">
+          <p class="py-4 text-gray-500">Waiting for metrics...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Health -->
+    <section id="health" class="mt-10 scroll-mt-6">
+      <div class="mb-4">
+        <h3 class="font-semibold text-white">System health</h3>
+        <p class="mt-1 text-sm text-gray-400">Availability of your application's components.</p>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <article class="panel p-5">
+          <div class="mb-3 flex items-center gap-3"><span id="expressDot" class="dot"></span><h4 class="font-medium text-white">Express API</h4></div>
+          <p id="expressHealth" class="text-sm text-gray-400">Checking</p>
+        </article>
+        <article class="panel p-5">
+          <div class="mb-3 flex items-center gap-3"><span id="prometheusDot" class="dot"></span><h4 class="font-medium text-white">Prometheus</h4></div>
+          <p id="prometheusHealth" class="text-sm text-gray-400">Checking</p>
+        </article>
+        <article class="panel p-5">
+          <div class="mb-3 flex items-center gap-3"><span id="postgresDot" class="dot"></span><h4 class="font-medium text-white">PostgreSQL</h4></div>
+          <p id="postgresHealth" class="text-sm text-gray-400">Not checked by this endpoint</p>
+        </article>
+      </div>
+
+      <div class="panel mt-6 p-5">
+        <h3 class="font-semibold text-white">Last successful update</h3>
+        <p id="lastSuccess" class="mt-2 text-sm text-gray-400">No successful update yet</p>
+        <p class="mt-3 text-xs leading-5 text-gray-500">
+          PostgreSQL health requires a separate database connectivity check. Prometheus health here means the
+          metrics endpoint responded successfully; it does not prove every scrape target is healthy.
+        </p>
+      </div>
+    </section>
+
+    <footer class="mt-10 border-t border-white/10 pt-5 text-xs text-gray-500">
+      TicketMaster Admin Console · Prometheus-backed metrics
+    </footer>
+  </main>
+</div>
+
+<!-- Sign-in modal -->
+<div id="authModal" class="fixed inset-0 z-50 flex hidden items-center justify-center bg-black/70 p-5 backdrop-blur-sm">
+  <form id="authForm" class="panel w-full max-w-md p-6">
+    <h3 class="text-lg font-semibold text-white">Admin sign-in</h3>
+    <p class="mt-1 text-sm text-gray-400">Paste an admin JWT to load metrics. It is kept in memory for this tab only.</p>
+    <label class="mt-5 block text-xs text-gray-400" for="tokenInput">Admin token</label>
+    <input id="tokenInput" type="password" autocomplete="off" spellcheck="false" placeholder="eyJhbGciOi..." class="mt-2">
+    <label class="mt-4 flex items-center gap-2 text-sm text-gray-400">
+      <input id="rememberToken" type="checkbox" style="width:auto"> Remember for this browser tab (sessionStorage)
+    </label>
+    <p id="authError" class="mt-3 hidden text-sm text-red-300"></p>
+    <button type="submit" class="mt-5 w-full rounded-lg bg-lime-300 px-4 py-2.5 text-sm font-semibold text-black hover:bg-lime-200">Use token</button>
+  </form>
+</div>
+
+<script>
+const API_URL = "/metrics/summary";
+const HISTORY_LEN = 60;
+const TOKEN_KEY = "tm_admin_token";
+
+// Paste the token between the quotes to skip the sign-in modal.
+// Anyone who can load this page can read it, so use a dedicated, metrics-only token.
+const EMBEDDED_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImNtdjNxcXBidTAwMDB2MG45aXdqZTh0b2MiLCJpYXQiOjE3OTE3MTgxODcsImV4cCI6MTc5MTgwNDU4N30.brZGTZ6-wJOtHpm3KBLMLWdAZs83kBguz7WMqoSaRDE";
+
+let adminToken = EMBEDDED_TOKEN || null;
+if (!adminToken) { try { adminToken = sessionStorage.getItem(TOKEN_KEY); } catch (_) {} }
+
+let refreshTimer = null;
+let refreshInterval = 10000;
+let isRefreshing = false;
+let paused = false;
+let lastSuccessAt = null;
+let hasData = false;
+
+const hist = { rps: [], total: [], err: [], p50: [], p95: [], p99: [], mem: [], cpu: [] };
+const $ = (id) => document.getElementById(id);
+
+/* ---------- formatting ---------- */
+const isNum = (v) => v !== null && v !== undefined && Number.isFinite(Number(v));
+const fmt = (v, d = 2) => isNum(v) ? Number(v).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d }) : "—";
+const fmtCount = (v) => isNum(v) ? Math.round(Number(v)).toLocaleString() : "—";
+const fmtMs = (s) => {
+  if (!isNum(s)) return "—";
+  const ms = Number(s) * 1000;
+  return ms >= 1000 ? `${fmt(ms / 1000)} s` : `${fmt(ms, ms < 10 ? 2 : 1)} ms`;
+};
+const fmtMem = (mb) => !isNum(mb) ? "—" : mb >= 1024 ? `${fmt(mb / 1024)} GB` : `${fmt(mb, 1)} MB`;
+
+function setText(id, text) {
+  const el = $(id);
+  el.textContent = text;
+  el.classList.remove("skeleton");
+}
+
+/* ---------- charts (inline SVG, no deps) ---------- */
+function sparkline(values, color) {
+  const v = values.filter(isNum).map(Number);
+  if (v.length < 2) return `<svg class="spark" viewBox="0 0 100 44"></svg>`;
+  const min = Math.min(...v), max = Math.max(...v);
+  const span = max - min || 1;
+  const pts = v.map((y, i) => [(i / (v.length - 1)) * 100, 40 - ((y - min) / span) * 34]);
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(2)},${p[1].toFixed(2)}`).join(" ");
+  const area = `${line} L100,44 L0,44 Z`;
+  const id = "g" + color.replace(/\W/g, "");
+  return `<svg class="spark" viewBox="0 0 100 44" preserveAspectRatio="none">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${color}" stop-opacity=".35"/><stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="${area}" fill="url(#${id})"/>
+    <path d="${line}" fill="none" stroke="${color}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+function multiLine(series) {
+  const all = series.flatMap(s => s.data.filter(isNum).map(Number));
+  if (all.length < 2) return `<p class="pt-8 text-center text-xs text-gray-500">Collecting data…</p>`;
+  const max = Math.max(...all) * 1.1 || 1;
+  const grid = [0.25, 0.5, 0.75].map(f => `<line x1="0" x2="100" y1="${(f * 100)}" y2="${(f * 100)}" stroke="#262d24" stroke-width="1" vector-effect="non-scaling-stroke"/>`).join("");
+  const paths = series.map(s => {
+    const d = s.data;
+    const pts = d.map((y, i) => isNum(y) ? [(i / Math.max(d.length - 1, 1)) * 100, 100 - (Number(y) / max) * 94 - 3] : null).filter(Boolean);
+    if (pts.length < 2) return "";
+    return `<path d="${pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(2)},${p[1].toFixed(2)}`).join(" ")}" fill="none" stroke="${s.color}" stroke-width="1.8" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
+  }).join("");
+  return `<div class="relative h-full">
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="h-full w-full">${grid}${paths}</svg>
+    <span class="absolute left-0 top-0 text-[10px] text-gray-500">${fmt(max, 0)} ms</span>
+  </div>`;
+}
+
+function push(key, value) {
+  hist[key].push(isNum(value) ? Number(value) : null);
+  if (hist[key].length > HISTORY_LEN) hist[key].shift();
+}
+
+/* ---------- status helpers ---------- */
+function setDot(id, state) {
+  const el = $(id);
+  el.classList.remove("ok", "warn", "bad");
+  if (state) el.classList.add(state);
+}
+
+function setHealth(dotId, textId, message, state) {
+  setDot(dotId, state);
+  $(textId).textContent = message;
+}
+
+function chip(el, text, state) {
+  el.textContent = text;
+  el.className = "chip" + (state ? " " + state : "");
+}
+
+function showError(msg) { $("errorBanner").textContent = msg; $("errorBanner").classList.remove("hidden"); }
+function clearError() { $("errorBanner").textContent = ""; $("errorBanner").classList.add("hidden"); }
+
+function latencyColor(ms) { return ms < 200 ? "#a3e635" : ms < 500 ? "#fbbf24" : "#f87171"; }
+
+/* ---------- rendering ---------- */
+function renderRoutes(routes) {
+  const box = $("slowestRoutes");
+  box.replaceChildren();
+
+  if (!Array.isArray(routes) || routes.length === 0) {
+    const p = document.createElement("p");
+    p.className = "py-4 text-gray-500";
+    p.textContent = "No route timing data available yet.";
+    box.appendChild(p);
+    return;
+  }
+
+  const sorted = [...routes].sort((a, b) => Number(b.averageLatencyMs) - Number(a.averageLatencyMs));
+  const max = Math.max(...sorted.map(r => Number(r.averageLatencyMs) || 0), 1);
+
+  sorted.forEach((r) => {
+    const ms = Number(r.averageLatencyMs);
+    const row = document.createElement("div");
+    row.className = "row grid grid-cols-1 gap-2 py-3 sm:grid-cols-12 sm:items-center";
+
+    const name = document.createElement("code");
+    name.className = "truncate text-gray-300 sm:col-span-5";
+    name.textContent = r.route || "unknown";
+    name.title = r.route || "unknown";
+
+    const trackWrap = document.createElement("div");
+    trackWrap.className = "sm:col-span-5";
+    const track = document.createElement("div");
+    track.className = "bar-track";
+    const fill = document.createElement("div");
+    fill.className = "bar-fill";
+    fill.style.width = Number.isFinite(ms) ? `${Math.max((ms / max) * 100, 2)}%` : "0";
+    fill.style.background = Number.isFinite(ms) ? latencyColor(ms) : "#4b5563";
+    track.appendChild(fill);
+    trackWrap.appendChild(track);
+
+    const val = document.createElement("span");
+    val.className = "metric-value text-right text-gray-200 sm:col-span-2";
+    val.textContent = Number.isFinite(ms) ? `${fmt(ms)} ms` : "—";
+
+    row.append(name, trackWrap, val);
+    box.appendChild(row);
+  });
+}
+
+function renderMetrics(m) {
+  hasData = true;
+
+  push("rps", m.requestsPerSecond);
+  push("total", m.totalRequestsLast5Minutes);
+  push("err", m.serverErrorPercentage);
+  push("p50", isNum(m.p50LatencySeconds) ? m.p50LatencySeconds * 1000 : null);
+  push("p95", isNum(m.p95LatencySeconds) ? m.p95LatencySeconds * 1000 : null);
+  push("p99", isNum(m.p99LatencySeconds) ? m.p99LatencySeconds * 1000 : null);
+  push("mem", m.memoryUsedMB);
+  push("cpu", m.cpuUsagePercent);
+
+  setText("requestsPerSecond", fmt(m.requestsPerSecond));
+  setText("totalRequests", fmtCount(m.totalRequestsLast5Minutes));
+  setText("errorRate", isNum(m.serverErrorPercentage) ? `${fmt(m.serverErrorPercentage)}%` : "—");
+
+  const errState = !isNum(m.serverErrorPercentage) ? "" : m.serverErrorPercentage < 1 ? "ok" : m.serverErrorPercentage < 5 ? "warn" : "bad";
+  chip($("errorChip"), errState === "ok" ? "Healthy" : errState === "warn" ? "Elevated" : errState === "bad" ? "Critical" : "No data", errState);
+
+  setText("p50Latency", fmtMs(m.p50LatencySeconds));
+  setText("p95Latency", fmtMs(m.p95LatencySeconds));
+  setText("p99Latency", fmtMs(m.p99LatencySeconds));
+
+  const p99ms = (Number(m.p99LatencySeconds) || 0) * 1000;
+  const scale = Math.max(p99ms, 1);
+  [["p50Bar", m.p50LatencySeconds], ["p95Bar", m.p95LatencySeconds], ["p99Bar", m.p99LatencySeconds]].forEach(([id, s]) => {
+    $(id).style.width = isNum(s) ? `${Math.min(((Number(s) * 1000) / scale) * 100, 100)}%` : "0";
+  });
+
+  setText("memoryUsed", fmtMem(m.memoryUsedMB));
+  setText("heapTotal", fmtMem(m.heapTotalMB));
+  setText("cpuUsage", isNum(m.cpuUsagePercent) ? `${fmt(m.cpuUsagePercent)}%` : "—");
+
+  if (isNum(m.memoryUsedMB) && isNum(m.heapTotalMB) && m.memoryUsedMB > 0) {
+    const ratio = Math.min((m.heapTotalMB / m.memoryUsedMB) * 100, 100);
+    $("heapBar").style.width = `${ratio}%`;
+    $("heapRatio").textContent = `${fmt(ratio, 0)}% of resident memory`;
+  }
+
+  $("sparkRps").innerHTML = sparkline(hist.rps, "#a3e635");
+  $("sparkTotal").innerHTML = sparkline(hist.total, "#7dd3fc");
+  $("sparkErr").innerHTML = sparkline(hist.err, errState === "bad" ? "#f87171" : errState === "warn" ? "#fbbf24" : "#a3e635");
+  $("sparkMem").innerHTML = sparkline(hist.mem, "#c4b5fd");
+  $("sparkCpu").innerHTML = sparkline(hist.cpu, "#fbbf24");
+  $("latencyChart").innerHTML = multiLine([
+    { data: hist.p50, color: "#7dd3fc" },
+    { data: hist.p95, color: "#c4b5fd" },
+    { data: hist.p99, color: "#fbbf24" }
+  ]);
+
+  renderRoutes(m.slowestRoutes);
+
+  // Overall API state combines errors and P95 latency.
+  const p95ms = (Number(m.p95LatencySeconds) || 0) * 1000;
+  let state = "ok", label = "Healthy", desc = "All indicators within target";
+  if (errState === "bad" || p95ms >= 1000) { state = "bad"; label = "Degraded"; desc = errState === "bad" ? "Server error rate is critical" : "P95 latency above 1 s"; }
+  else if (errState === "warn" || p95ms >= 500) { state = "warn"; label = "Warning"; desc = errState === "warn" ? "Server errors elevated" : "P95 latency above 500 ms"; }
+
+  setText("apiStatus", label);
+  $("apiStatusDescription").textContent = desc;
+  setDot("apiDot", state);
+  setDot("sidebarDot", state);
+  $("sidebarStatus").textContent = label;
+
+  setHealth("expressDot", "expressHealth", "Responding", "ok");
+  setHealth("prometheusDot", "prometheusHealth", "Metrics received", "ok");
+  setHealth("postgresDot", "postgresHealth", "Not checked by this endpoint", null);
+
+  lastSuccessAt = Date.now();
+  $("lastSuccess").textContent = new Date(lastSuccessAt).toLocaleString();
+  tickUpdated();
+}
+
+function renderFailure(message) {
+  showError(message);
+  setText("apiStatus", hasData ? "Stale" : "Unavailable");
+  $("apiStatusDescription").textContent = "Check the API, authentication and Prometheus.";
+  setDot("apiDot", "bad");
+  setDot("sidebarDot", "bad");
+  $("sidebarStatus").textContent = "Error";
+  setHealth("expressDot", "expressHealth", "Metrics request failed", "bad");
+  setHealth("prometheusDot", "prometheusHealth", "Status unknown", "bad");
+  $("refreshStatus").textContent = "Refresh failed";
+}
+
+function tickUpdated() {
+  if (!lastSuccessAt) return;
+  const age = Math.round((Date.now() - lastSuccessAt) / 1000);
+  $("lastUpdated").textContent = age < 2 ? "Updated just now" : `Updated ${age}s ago`;
+  if (!paused && !$("errorBanner").classList.contains("hidden") === false) {
+    $("refreshStatus").textContent = `Auto-refresh: ${refreshInterval / 1000}s`;
+  }
+}
+setInterval(tickUpdated, 1000);
+
+/* ---------- auth ---------- */
+function openAuth(message) {
+  $("authError").classList.toggle("hidden", !message);
+  $("authError").textContent = message || "";
+  $("authModal").classList.remove("hidden");
+  $("tokenInput").focus();
+}
+function closeAuth() { $("authModal").classList.add("hidden"); $("tokenInput").value = ""; }
+
+$("authForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const t = $("tokenInput").value.trim();
+  if (!t) return openAuth("Enter a token.");
+  adminToken = t;
+  try { $("rememberToken").checked ? sessionStorage.setItem(TOKEN_KEY, t) : sessionStorage.removeItem(TOKEN_KEY); } catch (_) {}
+  closeAuth();
+  $("signOut").classList.remove("hidden");
+  refreshMetrics();
+});
+
+$("signOut").addEventListener("click", () => {
+  adminToken = null;
+  try { sessionStorage.removeItem(TOKEN_KEY); } catch (_) {}
+  $("signOut").classList.add("hidden");
+  openAuth();
+});
+
+/* ---------- fetching ---------- */
+async function refreshMetrics() {
+  if (isRefreshing) return;
+  if (!adminToken) return openAuth();
+
+  isRefreshing = true;
+  $("refreshButton").disabled = true;
+  $("refreshButton").textContent = "Refreshing…";
+
+  try {
+    const res = await fetch(API_URL, {
+      method: "GET",
+      headers: { Accept: "application/json", Authorization: `Bearer ${adminToken}` },
+      cache: "no-store"
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      adminToken = null;
+      try { sessionStorage.removeItem(TOKEN_KEY); } catch (_) {}
+      $("signOut").classList.add("hidden");
+      openAuth("Authentication failed. Check that the token is valid and belongs to an admin.");
+      throw new Error("Authentication failed.");
+    }
+    if (!res.ok) throw new Error(`Metrics API returned HTTP ${res.status}.`);
+
+    const data = await res.json();
+    if (data.success !== true || !data.metrics) throw new Error(data.message || "The metrics response is invalid.");
+
+    renderMetrics(data.metrics);
+    clearError();
+    $("refreshStatus").textContent = paused ? "Paused" : `Auto-refresh: ${refreshInterval / 1000}s`;
+  } catch (err) {
+    renderFailure(err.message || "Unable to load metrics.");
+  } finally {
+    isRefreshing = false;
+    $("refreshButton").disabled = false;
+    $("refreshButton").textContent = "Refresh";
+  }
+}
+
+function schedule() {
+  clearInterval(refreshTimer);
+  if (paused) return;
+  refreshTimer = setInterval(() => { if (!document.hidden) refreshMetrics(); }, refreshInterval);
+}
+
+$("refreshButton").addEventListener("click", refreshMetrics);
+$("intervalSelect").addEventListener("change", (e) => { refreshInterval = Number(e.target.value); schedule(); $("refreshStatus").textContent = `Auto-refresh: ${refreshInterval / 1000}s`; });
+$("pauseButton").addEventListener("click", () => {
+  paused = !paused;
+  $("pauseButton").textContent = paused ? "Resume" : "Pause";
+  $("refreshStatus").textContent = paused ? "Paused" : `Auto-refresh: ${refreshInterval / 1000}s`;
+  schedule();
+});
+document.addEventListener("visibilitychange", () => { if (!document.hidden && !paused) refreshMetrics(); });
+
+/* ---------- navigation ---------- */
+const titles = { overview: "OVERVIEW", latency: "LATENCY", performance: "PERFORMANCE", health: "SYSTEM HEALTH" };
+document.querySelectorAll("[data-section]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const section = $(btn.dataset.section);
+    if (section) section.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+});
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach((entry) => {
+    if (!entry.isIntersecting) return;
+    const id = entry.target.id;
+    document.querySelectorAll("[data-section]").forEach((b) => b.classList.toggle("active", b.dataset.section === id));
+    $("crumb").textContent = `MONITORING / ${titles[id]}`;
+  });
+}, { rootMargin: "-30% 0px -60% 0px" });
+Object.keys(titles).forEach((id) => observer.observe($(id)));
+
+/* ---------- boot ---------- */
+if (adminToken) { $("signOut").classList.remove("hidden"); refreshMetrics(); } else { openAuth(); }
+schedule();
+</script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ReservationStatus {
+  HELD
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique @db.VarChar(100)
+  email     String   @unique @db.VarChar(255)
+  password  String
+  is_admin  Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  reservations  Reservation[]
+  notifications Notification[]
+  payments      Payment[]
+
+  @@map("users")
+}
+
+model Movie {
+  id        String   @id @default(cuid())
+  name      String   @db.VarChar(255)
+  genre     String   @db.VarChar(50)
+  duration  Int
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  shows Show[]
+
+  @@map("movies")
+}
+
+model Show {
+  id        String   @id @default(cuid())
+  movieId   String   @map("movie_id")
+  theater   String   @db.VarChar(100)
+  startTime DateTime @map("start_time") @db.Timestamp(3)
+  endTime   DateTime @map("end_time") @db.Timestamp(3)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  movie        Movie         @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  reservations Reservation[]
+
+  @@index([movieId, startTime])
+  @@map("shows")
+}
+
+model Reservation {
+  id         String            @id @default(cuid())
+  userId     String            @map("user_id")
+  showId     String            @map("show_id")
+  seatNumber String            @map("seat_number") @db.VarChar(10)
+  status     ReservationStatus @default(HELD)
+  expiresAt  DateTime          @map("expires_at") @db.Timestamp(3)
+  createdAt  DateTime          @default(now()) @map("created_at")
+  updatedAt  DateTime          @updatedAt @map("updated_at")
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  show    Show     @relation(fields: [showId], references: [id], onDelete: Restrict)
+  payment Payment?
+
+  @@index([userId, status])
+  @@index([showId, seatNumber, status, expiresAt])
+  @@map("reservations")
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  reservationId String        @unique @map("booking_id")
+  userId        String        @map("user_id")
+  amount        Decimal       @db.Decimal(10, 2)
+  status        PaymentStatus @default(PENDING)
+  provider      String?       @db.VarChar(50)
+  transactionId String?       @unique @map("transaction_id") @db.VarChar(100)
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, status])
+  @@map("payments")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  type      String?  @db.VarChar(50)
+  message   String?  @db.Text
+  status    String   @default("PENDING") @db.VarChar(20)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("notifications")
+}
