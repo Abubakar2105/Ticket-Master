@@ -1,4 +1,5 @@
 const prisma = require("../config/prisma");
+const  cache  = require("../utils/cache");
 
 const createMovie = async (req, res) => {
   try {
@@ -15,6 +16,7 @@ const createMovie = async (req, res) => {
         duration,
       },
     });
+    await cache.del("movies:all");
     return res
       .status(201)
       .json({ message: "Movie created successfully", movie });
@@ -25,9 +27,15 @@ const createMovie = async (req, res) => {
 
 const getMovies = async (req, res) => {
   try {
+    const cachedData = await cache.get("movies:all");
+    if(cachedData){
+      return res.status(200).json({count:cachedData.length,movies:cachedData});
+    }
+    
     const movies = await prisma.movie.findMany({
       orderBy: { createdAt: "desc" },
     });
+      await cache.set("movies:all",60,movies);
     return res.status(200).json({ count: movies.length, movies });
   } catch (error) {
     console.error("Get movies error:", error);

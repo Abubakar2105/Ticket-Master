@@ -1,4 +1,5 @@
 const prisma = require("../config/prisma");
+const cache = require("../utils/cache");
 
 const createShow = async (req, res) => {
   try {
@@ -34,6 +35,7 @@ const createShow = async (req, res) => {
       },
       include: { movie: true },
     });
+    await cache.del("shows:all");
     return res.status(201).json({ message: "Show created successfully", show });
   } catch (error) {
     console.error("Create show error:", error);
@@ -44,6 +46,12 @@ const createShow = async (req, res) => {
 
 const getShows = async (req, res) => {
   try {
+    const cachedData = await cache.get("shows:all");
+    if(cachedData){
+      return res.status(200).json({   count: cachedData.length,
+      cachedData,})
+    }
+
     const shows = await prisma.show.findMany({
       include: {
         movie: true,
@@ -52,6 +60,7 @@ const getShows = async (req, res) => {
         startTime: "asc",
       },
     });
+    await cache.set("shows:all",30,shows);
 
     return res.status(200).json({
       count: shows.length,

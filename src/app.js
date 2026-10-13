@@ -40,11 +40,13 @@ app.get('/health',async(req,res)=>{
 const { authLimiter, generalLimiter, reservationLimiter, paymentLimiter } = require("./middleware/ratelimit.middleware")
 
 app.use("/users",authLimiter, userRoutes);
-app.use("/movies", generalLimiter,movieRoutes);
+app.use("/movies",movieRoutes);
 app.use("/shows",generalLimiter,showsRoutes);
 app.use("/seats",reservationLimiter, reservationRoute);
 app.use("/payments",paymentLimiter , paymentRouter)
 app.use("/notification",generalLimiter,notificationRouter)
 app.use('/metrics',metricRouter);
+
+
 
 module.exports = app;
