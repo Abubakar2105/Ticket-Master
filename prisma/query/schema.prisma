@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../../generated/query"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Movie {
+  id        String   @id
+  name      String
+  genre     String
+  duration  Int
+  createdAt DateTime
+
+  @@map("movie")
+}
+
+model Show {
+  id             String   @id
+  movieId        String
+  movieName      String
+  genre          String
+  theater        String
+  startTime      DateTime
+  endTime        DateTime
+  totalSeats     Int
+  availableSeats Int
+
+  @@index([movieId])
+  @@index([startTime])
+  @@map("show")
+}
+
+model Reservation {
+  id           String   @id
+  userId       String
+  showId       String
+  movieName    String
+  theater      String
+  startTime    DateTime
+  seatNumber   String
+  status       String
+  expiresAt    DateTime
+  createdAt    DateTime
+
+  @@index([userId])
+  @@index([showId])
+  @@map("reservation")
+}

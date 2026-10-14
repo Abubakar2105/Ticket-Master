@@ -2,13 +2,13 @@
 const express = require("express");
 const movieRoutes = express.Router();
 
-const {
-  createMovie, getMovies
-} = require("../controllers/movie.controller");
+
 
 const {authenticateUser, authorizeAdmin} = require("../middleware/auth.middleware");
+const { createMovie } = require("../controllers/command/movie.controller");
+const { getMovies } = require("../controllers/query/movie.controller");
 
-movieRoutes.post("/", authenticateUser, authorizeAdmin, createMovie);
+movieRoutes.post("/", authenticateUser, createMovie);
 movieRoutes.get("/", getMovies);
 
 module.exports = movieRoutes;

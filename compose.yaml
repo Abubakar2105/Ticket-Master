@@ -18,6 +18,23 @@ services:
       timeout: 5s
       retries: 3
 
+  postgres_query:
+    image: postgres:16.2
+    container_name: ticket-master-postgres-query
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ticket-query
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres_query_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d ticket-query"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
   redis:
     image: redis:7-alpine
     container_name: ticket-master-redis
@@ -54,6 +71,7 @@ services:
 
 volumes:
   postgres_data:
+  postgres_query_data:
   redis_data:
   prometheus_data:
   grafana_data:
