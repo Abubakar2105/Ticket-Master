@@ -1,4 +1,4 @@
-const prisma = require("../config/prisma");
+const commandPrisma = require("../config/command-prisma");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
@@ -10,7 +10,7 @@ const registerUser = async (req, res) => {
         message: "Username,email and password is required",
       });
     }
-    const existingUser = await prisma.user.findFirst({
+    const existingUser = await commandPrisma.user.findFirst({
       where: {
         OR: [{ username }, { email }],
       },
@@ -21,7 +21,7 @@ const registerUser = async (req, res) => {
       });
     }
     const hashPass = await bcrypt.hash(password, 12);
-    const user = await prisma.user.create({
+    const user = await commandPrisma.user.create({
       data: {
         username,
         email,
@@ -49,7 +49,7 @@ const registerUser = async (req, res) => {
 
 const getUsers = async (req, res) => {
   try {
-    const users = await prisma.user.findMany({
+    const users = await commandPrisma.user.findMany({
       select: {
         id: true,
         username: true,
@@ -70,7 +70,7 @@ const getUsers = async (req, res) => {
 const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
-    const user = await prisma.user.findUnique({
+    const user = await commandPrisma.user.findUnique({
       where: {
         id,
       },
@@ -97,7 +97,7 @@ const loginUser = async (req, res) => {
         message: "Email and password are required",
       });
     }
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await commandPrisma.user.findUnique({ where: { email } });
     if (!user) {
       return res.status(401).json({ message: "Invalid email or password" });
     }

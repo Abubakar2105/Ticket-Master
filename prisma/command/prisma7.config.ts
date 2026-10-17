@@ -9,6 +9,6 @@ export default defineConfig({
     path: "./migrations",
   },
   datasource: {
-    url: process.env["COMMAND_DATABASE_URL"],
+    url: process.env["COMMAND_DIRECT_URL"],
   },
 });

@@ -8,7 +8,7 @@ app.use(express.json())
 app.use(metricsMiddleware);
 app.use(express.static(path.join(__dirname, "../public")));
 
-// const userRoutes = require("./routes/user.route");
+const userRoutes = require("./routes/user.route");
 const movieRoutes = require('./routes/movie.route');
 // const showsRoutes = require('./routes/shows.route');
 // const reservationRoute = require('./routes/reservation.route');
@@ -39,7 +39,7 @@ app.get('/health',async(req,res)=>{
 
 const { authLimiter, generalLimiter, reservationLimiter, paymentLimiter } = require("./middleware/ratelimit.middleware")
 
-// app.use("/users",authLimiter, userRoutes);
+app.use("/users",authLimiter, userRoutes);
 app.use("/movies",movieRoutes);
 // app.use("/shows",generalLimiter,showsRoutes);
 // app.use("/seats",reservationLimiter, reservationRoute);
