@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ticket-worker
+  namespace: ticket-master
+  labels:
+    app: ticket-worker
+    tier: worker
+spec:
+  # Keep one replica. The outbox poller selects PENDING rows without a claim,
+  # so two workers could publish the same event twice.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ticket-worker
+  template:
+    metadata:
+      labels:
+        app: ticket-worker
+        tier: worker
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: ticket-worker
+          image: ticket-master-api:v4
+          imagePullPolicy: IfNotPresent
+          command: ["npm", "run", "worker"]
+
+          env:
+            - name: NODE_ENV
+              value: production
+
+            - name: COMMAND_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ticket-db-secret
+                  key: command-url
+
+            - name: QUERY_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ticket-db-secret
+                  key: query-url
+
+            - name: REDIS_NODES
+              value: "host.docker.internal:7001,host.docker.internal:7002,host.docker.internal:7003,host.docker.internal:7004,host.docker.internal:7005,host.docker.internal:7006"
+
+            - name: REDIS_NAT_MAP
+              value: '{"172.28.0.11:6379":{"host":"host.docker.internal","port":7001},"172.28.0.12:6379":{"host":"host.docker.internal","port":7002},"172.28.0.13:6379":{"host":"host.docker.internal","port":7003},"172.28.0.14:6379":{"host":"host.docker.internal","port":7004},"172.28.0.15:6379":{"host":"host.docker.internal","port":7005},"172.28.0.16:6379":{"host":"host.docker.internal","port":7006}}'
+
+            - name: DB_POOL_MAX
+              value: "5"
+            - name: DB_POOL_MIN
+              value: "1"
+
+            - name: OUTBOX_POLL_INTERVAL_MS
+              value: "1000"
+            - name: OUTBOX_BATCH_SIZE
+              value: "100"
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi

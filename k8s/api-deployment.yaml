@@ -1,0 +1,124 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ticket-api
+  namespace: ticket-master
+  labels:
+    app: ticket-api
+    tier: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: ticket-api
+  template:
+    metadata:
+      labels:
+        app: ticket-api
+        tier: backend
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: ticket-api
+          image: ticket-master-api:v4
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+
+          env:
+            - name: NODE_ENV
+              value: production
+
+            - name: PORT
+              value: "3000"
+
+            # ingress-nginx is one proxy hop; without this every client IP is
+            # the ingress address and rate limits apply to the proxy.
+            - name: TRUST_PROXY
+              value: "1"
+
+            # 20 pods x 10 connections = 200, well inside PgBouncer's
+            # max_client_conn (1000) and the database's connection limit.
+            - name: DB_POOL_MAX
+              value: "10"
+            - name: DB_POOL_MIN
+              value: "2"
+
+            - name: OUTBOX_POLL_INTERVAL_MS
+              value: "1000"
+
+            - name: COMMAND_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ticket-db-secret
+                  key: command-url
+
+            - name: QUERY_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ticket-db-secret
+                  key: query-url
+
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ticket-app-secret
+                  key: jwt-secret
+
+            - name: REDIS_NODES
+              value: "host.docker.internal:7001,host.docker.internal:7002,host.docker.internal:7003,host.docker.internal:7004,host.docker.internal:7005,host.docker.internal:7006"
+
+            - name: REDIS_NAT_MAP
+              value: '{"172.28.0.11:6379":{"host":"host.docker.internal","port":7001},"172.28.0.12:6379":{"host":"host.docker.internal","port":7002},"172.28.0.13:6379":{"host":"host.docker.internal","port":7003},"172.28.0.14:6379":{"host":"host.docker.internal","port":7004},"172.28.0.15:6379":{"host":"host.docker.internal","port":7005},"172.28.0.16:6379":{"host":"host.docker.internal","port":7006}}'
+
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+
+          startupProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "5"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ticket-api
+  namespace: ticket-master
+spec:
+  type: ClusterIP
+  selector:
+    app: ticket-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP

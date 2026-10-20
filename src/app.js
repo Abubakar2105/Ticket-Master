@@ -7,7 +7,7 @@ const app = express();
 app.use(express.json())
 app.use(metricsMiddleware);
 app.use(express.static(path.join(__dirname, "../public")));
-
+app.get('/ping', (req, res) => res.send('ok'));
 const userRoutes = require("./routes/user.route");
 const movieRoutes = require('./routes/movie.route');
 // const showsRoutes = require('./routes/shows.route');
@@ -21,12 +21,13 @@ const metricRouter = require('./routes/metric.route');
 app.get('/health',async(req,res)=>{
     try { 
         await commandPrisma.$queryRaw`SELECT 1`; 
-        return res.status(200).json({
-        status: "healthy", 
-        message: "API and database are running", 
-        database: "connected", 
-        timestamp: new Date().toISOString(), 
-    }); 
+        return res.json({
+  status: 'healthy',
+  message: 'API and database are running',
+  database: 'connected',
+  instance: process.env.HOSTNAME || require("os").hostname(),
+  timestamp: new Date().toISOString()
+});
         } catch (error) { 
             console.error("Health check failed:", error); 
             return res.status(503).json({ 
@@ -35,6 +36,7 @@ app.get('/health',async(req,res)=>{
                 database: "disconnected", 
                 timestamp: new Date().toISOString(), 
          });
+         
 } });
 
 const { authLimiter, generalLimiter, reservationLimiter, paymentLimiter } = require("./middleware/ratelimit.middleware")

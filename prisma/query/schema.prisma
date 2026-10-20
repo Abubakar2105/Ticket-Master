@@ -14,7 +14,7 @@ model Movie {
   duration  Int
   createdAt DateTime
 
-  @@map("movie")
+  @@map("movie_views")
 }
 
 model Show {
@@ -30,7 +30,7 @@ model Show {
 
   @@index([movieId])
   @@index([startTime])
-  @@map("show")
+  @@map("show_views")
 }
 
 model Reservation {
@@ -47,5 +47,5 @@ model Reservation {
 
   @@index([userId])
   @@index([showId])
-  @@map("reservation")
+  @@map("reservation_views")
 }
