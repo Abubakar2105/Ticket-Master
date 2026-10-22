@@ -1,4 +1,5 @@
 
+const commandPrisma = require("../config/command-prisma");
 const prisma = require("../config/prisma");
 const { withSeatLock } = require("../utils/seatLock");
 
@@ -104,13 +105,12 @@ const reserveSeat = async (req, res) => {
     const showId = show_id.trim();
     const seatNumber = seat_id.trim().toUpperCase();
 
-    // Redis prevents simultaneous requests from processing
-    // the same seat at the same time.
+   
     const reservation = await withSeatLock(
       showId,
       seatNumber,
       async () => {
-        return prisma.$transaction(async (tx) => {
+        return commandPrisma.$transaction(async (tx) => {
           const show = await tx.show.findUnique({
             where: { id: showId },
             select: {
@@ -135,8 +135,6 @@ const reserveSeat = async (req, res) => {
 
           const now = new Date();
 
-          // Expire old holds for this seat before checking
-          // whether another active reservation exists.
           await tx.reservation.updateMany({
             where: {
               showId,
@@ -173,13 +171,11 @@ const reserveSeat = async (req, res) => {
             throw error;
           }
 
-          // Hold the seat for two minutes while the user
-          // completes the reservation/payment process.
           const expiresAt = new Date(
             Date.now() + 2 * 60 * 1000
           );
 
-          return tx.reservation.create({
+          const reservation =  tx.reservation.create({
             data: {
               userId,
               showId,
@@ -197,6 +193,17 @@ const reserveSeat = async (req, res) => {
               createdAt: true,
             },
           });
+
+          await tx.outboxEvent.create({
+            data: {
+          eventType: "reservation-created",
+          aggregateId: reservation.id,
+          payload: reservation,
+          status: "PENDING",
+        },
+          })
+
+            return reservation;
         });
       }
     );
@@ -220,9 +227,7 @@ const reserveSeat = async (req, res) => {
       });
     }
 
-    // PostgreSQL unique-index violations, including the
-    // active-seat partial unique index when Prisma surfaces
-    // it as P2002.
+   
     if (error.code === "P2002") {
       return res.status(409).json({
         message: "This seat is already reserved",
@@ -301,14 +306,12 @@ const cancelReservation = async (req, res) => {
     const userId = req.user?.id;
     const { reservation_id } = req.body;
 
-    // 1. Check authentication
     if (!userId) {
       return res.status(401).json({
         message: "Authentication required",
       });
     }
 
-    // 2. Validate input
     if (
       typeof reservation_id !== "string" ||
       !reservation_id.trim()
@@ -320,8 +323,7 @@ const cancelReservation = async (req, res) => {
 
     const reservationId = reservation_id.trim();
 
-    // 3. Perform cancellation in a transaction
-    const outcome = await prisma.$transaction(async (tx) => {
+    const outcome = await commandPrisma.$transaction(async (tx) => {
       const reservation = await tx.reservation.findUnique({
         where: {
           id: reservationId,
@@ -406,6 +408,15 @@ const cancelReservation = async (req, res) => {
           updatedAt: true,
         },
       });
+
+      await tx.outboxEvent.create({
+        data: {
+          eventType: "reservation-canceled",
+          aggregateId: updatedReservation.id,
+          payload: updatedReservation,
+          status: "PENDING",
+        },
+      })
 
       return {
         reservation: updatedReservation,

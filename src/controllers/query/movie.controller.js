@@ -9,13 +9,11 @@ const getMovies = async (req, res) => {
     
 
     if (cachedData !== null) {
-      const movies = JSON.parse(cachedData);
       return res.status(200).json({
         count: movies.length,
         movies,
       });
     }
-
 
     const movies = await queryPrisma.movie.findMany({
       orderBy: {
@@ -23,9 +21,7 @@ const getMovies = async (req, res) => {
       },
     });
 
-    const json = JSON.stringify(movies);
-   
-    await cache.set("movies:all", 60, json);
+    await cache.set("movies:all", 60, movies);
 
     return res.status(200).json({
       count: movies.length,
