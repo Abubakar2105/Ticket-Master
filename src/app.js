@@ -11,9 +11,9 @@ app.get('/ping', (req, res) => res.send('ok'));
 const userRoutes = require("./routes/user.route");
 const movieRoutes = require('./routes/movie.route');
 const showsRoutes = require('./routes/shows.route');
-// const reservationRoute = require('./routes/reservation.route');
-// const paymentRouter = require('./routes/payment.route');
-// const notificationRouter = require('./routes/notification.route');
+const reservationRoute = require('./routes/reservation.route');
+const paymentRouter = require('./routes/payment.route');
+const notificationRouter = require('./routes/notification.route');
 const metricRouter = require('./routes/metric.route');
 
 
@@ -44,9 +44,9 @@ const { authLimiter, generalLimiter, reservationLimiter, paymentLimiter } = requ
 app.use("/users",authLimiter, userRoutes);
 app.use("/movies",generalLimiter,movieRoutes);
 app.use("/shows",generalLimiter,showsRoutes);
-// app.use("/seats",reservationLimiter, reservationRoute);
-// app.use("/payments",paymentLimiter , paymentRouter)
-// app.use("/notification",generalLimiter,notificationRouter)
+app.use("/seats",reservationLimiter, reservationRoute);
+app.use("/payments",paymentLimiter , paymentRouter);
+app.use("/notification",generalLimiter,notificationRouter);
 app.use('/metrics',metricRouter);
 
 

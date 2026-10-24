@@ -4,7 +4,7 @@ const router = express.Router();
 const {authenticateUser, authorizeAdmin} = require("../middleware/auth.middleware")
 const 
   {registerUser, loginUser} =
-require("../controllers/user.controller");
+require("../controllers/command/user.controller");
 const { getUsers, getUserById } = require("../controllers/query/user.controller");
 
 router.post("/register", registerUser);

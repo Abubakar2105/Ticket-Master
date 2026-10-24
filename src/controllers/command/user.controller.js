@@ -1,34 +1,34 @@
-const commandPrisma = require("../config/command-prisma");
+const commandPrisma = require("../../config/command-prisma");
+const { append } = require("../../events/store");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 const registerUser = async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password } = req.body || {};
 
-    if (!username || !email || !password) {
+    if (
+      typeof username !== "string" ||
+      !username.trim() ||
+      username.trim().length > 100 ||
+      typeof email !== "string" ||
+      !email.trim() ||
+      email.trim().length > 255 ||
+      typeof password !== "string" ||
+      !password ||
+      Buffer.byteLength(password, "utf8") > 72
+    ) {
       return res.status(400).json({
-        message: "Username, email and password are required",
+        message: "A valid username, email, and password (at most 72 bytes) are required",
       });
     }
 
+    const hashPass = await bcrypt.hash(password, 12);
     const user = await commandPrisma.$transaction(async (tx) => {
-      const existingUser = await tx.user.findFirst({
-        where: {
-          OR: [{ username }, { email }],
-        },
-      });
-
-      if (existingUser) {
-        throw new Error("USER_ALREADY_EXISTS");
-      }
-
-      const hashPass = await bcrypt.hash(password, 12);
-
-      const user = await tx.user.create({
+      const createdUser = await tx.user.create({
         data: {
-          username,
-          email,
+          username: username.trim(),
+          email: email.trim(),
           password: hashPass,
           is_admin: false,
         },
@@ -37,19 +37,17 @@ const registerUser = async (req, res) => {
           username: true,
           email: true,
           is_admin: true,
+          createdAt: true,
         },
       });
 
-      await tx.outboxEvent.create({
-        data: {
-          eventType: "user-created",
-          aggregateId: user.id,
-          payload: user,
-          status: "PENDING",
-        },
-      });
+      await append({
+        eventType: "user-created",
+        aggregateId: createdUser.id,
+        payload: createdUser,
+      }, tx);
 
-      return user;
+      return createdUser;
     });
 
     return res.status(201).json({
@@ -57,60 +55,58 @@ const registerUser = async (req, res) => {
       user,
     });
   } catch (error) {
-    if (error.message === "USER_ALREADY_EXISTS") {
+    if (error.code === "P2002") {
       return res.status(409).json({
         message: "Username or email already exists",
       });
     }
 
     console.error("Registration error:", error);
-
-    return res.status(500).json({
-      message: "Internal server error",
-    });
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
 
 const loginUser = async (req, res) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password) {
+    const { email, password } = req.body || {};
+
+    if (
+      typeof email !== "string" ||
+      !email.trim() ||
+      email.trim().length > 255 ||
+      typeof password !== "string" ||
+      !password ||
+      Buffer.byteLength(password, "utf8") > 72
+    ) {
       return res.status(400).json({
-        message: "Email and password are required",
+        message: "A valid email and password are required",
       });
     }
-    const user = await commandPrisma.user.findUnique({ where: { email } });
-    if (!user) {
+
+    const user = await commandPrisma.user.findUnique({
+      where: { email: email.trim() },
+    });
+
+    if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ message: "Invalid email or password" });
     }
-    const passwordMatches = await bcrypt.compare(password, user.password);
-    if (!passwordMatches) {
-      return res.status(401).json({ message: "Invalid email or password" });
-    }
-    const token = jwt.sign(
-      {
+
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: "1d" });
+
+    return res.status(200).json({
+      message: "Login successful",
+      token,
+      user: {
         id: user.id,
+        username: user.username,
+        email: user.email,
+        is_admin: user.is_admin,
       },
-      process.env.JWT_SECRET,
-      { expiresIn: "1d" },
-    );
-    return res
-      .status(200)
-      .json({
-        message: "Login successful",
-        token,
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          is_admin: user.is_admin,
-        },
-      });
+    });
   } catch (error) {
-    return res.status(500).json({ message: "Login failed", error:error.message });
+    console.error("Login error:", error);
+    return res.status(500).json({ message: "Login failed" });
   }
 };
 
-
-
-module.exports = {loginUser, registerUser };
+module.exports = { loginUser, registerUser };

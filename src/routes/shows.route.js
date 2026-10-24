@@ -3,7 +3,7 @@ const showsRoutes = express.Router();
 
 const {
   createShow
-} = require("../controllers/shows.controller");
+} = require("../controllers/command/shows.controller");
 
 const {authenticateUser, authorizeAdmin} = require("../middleware/auth.middleware");
 const { getShows } = require("../controllers/query/show.controller");

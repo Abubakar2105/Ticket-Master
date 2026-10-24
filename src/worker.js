@@ -11,7 +11,7 @@ async function main() {
 
   await Promise.all([
     startOutboxWorker(),
-    consumeEvents("consumer-1"),
+    consumeEvents(),
   ]);
 }
 

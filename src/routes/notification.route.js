@@ -4,7 +4,7 @@ const notificationRouter = express.Router();
 
 const {
   getUserNotifications,
-} = require("../controllers/notification.controller");
+} = require("../controllers/query/notification.controller");
 
 const {authenticateUser} = require("../middleware/auth.middleware");
 

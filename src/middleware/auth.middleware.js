@@ -14,6 +14,9 @@ const authenticateUser = async (req, res, next) => {
     const token = authHeader.split(" ")[1];
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (typeof decoded !== "object" || typeof decoded.id !== "string" || !decoded.id) {
+      return res.status(401).json({ message: "Invalid or expired token" });
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
@@ -24,8 +27,6 @@ const authenticateUser = async (req, res, next) => {
         is_admin: true,
       },
     });
-    console.log(user);
-    
     if (!user) {
       return res.status(401).json({
         message: "User no longer exists",
@@ -56,10 +57,6 @@ const authorizeAdmin = (req, res, next) => {
 
   next();
 };
-
-module.exports = authorizeAdmin;
-
-
 
 module.exports = {authenticateUser, authorizeAdmin};
 

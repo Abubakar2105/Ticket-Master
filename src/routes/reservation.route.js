@@ -1,12 +1,8 @@
 const express = require("express");
 const reservationRoute = express.Router();
 
-const {
-  checkSeatAvailability,
-  reserveSeat,
-  getUserReservations,
-  cancelReservation,
-} = require("../controllers/reservation.controller");
+const { reserveSeat, cancelReservation } = require("../controllers/command/reservation.controller");
+const { checkSeatAvailability, getUserReservations } = require("../controllers/query/reservation.controller");
 const { authenticateUser } = require("../middleware/auth.middleware");
 
 reservationRoute.get("/:seat_id", checkSeatAvailability);

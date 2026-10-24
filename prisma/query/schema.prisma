@@ -7,6 +7,16 @@ datasource db {
   provider = "postgresql"
 }
 
+model User {
+  id        String   @id
+  username  String
+  email     String
+  is_admin  Boolean
+  createdAt DateTime
+
+  @@map("user_views")
+}
+
 model Movie {
   id        String   @id
   name      String
@@ -25,8 +35,7 @@ model Show {
   theater        String
   startTime      DateTime
   endTime        DateTime
-  totalSeats     Int
-  availableSeats Int
+  createdAt      DateTime @default(now())
 
   @@index([movieId])
   @@index([startTime])
@@ -44,8 +53,35 @@ model Reservation {
   status       String
   expiresAt    DateTime
   createdAt    DateTime
+  updatedAt    DateTime @default(now())
 
   @@index([userId])
   @@index([showId])
   @@map("reservation_views")
+}
+
+model Payment {
+  id            String   @id
+  reservationId String   @unique
+  userId        String
+  amount        Decimal  @db.Decimal(10, 2)
+  status        String
+  provider      String?
+  transactionId String?
+  createdAt     DateTime
+
+  @@index([userId])
+  @@map("payment_views")
+}
+
+model Notification {
+  id        String   @id
+  userId    String
+  type      String?
+  message   String?
+  status    String
+  createdAt DateTime
+
+  @@index([userId])
+  @@map("notification_views")
 }

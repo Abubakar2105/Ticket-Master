@@ -4,7 +4,7 @@ const paymentRouter = express.Router();
 const {
   initiatePayment,
   verifyPayment,
-} = require("../controllers/payment.controller");
+} = require("../controllers/command/payment.controller");
 
 const {authenticateUser} = require("../middleware/auth.middleware");
 

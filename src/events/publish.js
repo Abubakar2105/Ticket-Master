@@ -35,6 +35,9 @@ const subscribe = (eventName, handler) => {
 
 const notifySubscribers = async (event) => {
   const handlers = subscribers.get(event.eventType) || [];
+  if (handlers.length === 0) {
+    throw new Error(`No subscriber registered for ${event.eventType}`);
+  }
 
   console.log(
     `Looking for subscribers: ${event.eventType}`
